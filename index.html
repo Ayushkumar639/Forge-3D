@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge3D — AI 3D Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--s1:#111118;--s2:#16161f;
+  --b0:rgba(255,255,255,.07);--b1:rgba(255,255,255,.13);
+  --ac:#6c63ff;--ac2:#a78bfa;--ag:rgba(108,99,255,.18);
+  --ok:#22c55e;--t1:#f0f0f8;--t2:#9191a8;--t3:#55556a;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1)}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(ellipse 60% 50% at 20% 10%,rgba(108,99,255,.10) 0%,transparent 60%),
+  radial-gradient(ellipse 50% 40% at 80% 80%,rgba(167,139,250,.07) 0%,transparent 60%);
+  pointer-events:none;z-index:0}
+
+/* ── Topbar ── */
+#top{position:relative;z-index:10;display:flex;align-items:center;
+  justify-content:space-between;padding:0 22px;height:52px;flex-shrink:0;
+  border-bottom:1px solid var(--b0);background:rgba(10,10,15,.9);backdrop-filter:blur(16px)}
+.logo{display:flex;align-items:center;gap:9px;
+  font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;
+  color:var(--t1);letter-spacing:-.02em}
+.logo-i{width:29px;height:29px;background:linear-gradient(135deg,var(--ac),var(--ac2));
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.logo span{color:var(--ac2)}
+.chips{display:flex;gap:7px}
+.chip{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:500;letter-spacing:.04em}
+.c-or{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.25)}
+.c-ac{background:rgba(108,99,255,.15);color:var(--ac2);border:1px solid rgba(108,99,255,.3)}
+.c-ok{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+
+/* ── App ── */
+#app{position:relative;z-index:1;display:flex;height:calc(100vh - 52px);overflow:hidden}
+
+/* ══ SIDEBAR ══ */
+#sb{width:268px;min-width:268px;display:flex;flex-direction:column;
+  background:var(--s1);border-right:1px solid var(--b0);height:100%;overflow:hidden}
+#sb-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  padding:13px;display:flex;flex-direction:column;gap:11px}
+#sb-body::-webkit-scrollbar{width:3px}
+#sb-body::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
+#sb-foot{flex-shrink:0;padding:11px 13px;border-top:1px solid var(--b0);
+  display:flex;flex-direction:column;gap:7px;background:var(--s1)}
+
+.slbl{font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--t3);
+  text-transform:uppercase;margin-bottom:5px}
+
+/* Mode tabs */
+.tabs{display:flex;gap:3px;background:var(--s2);border-radius:9px;padding:3px}
+.tab{flex:1;padding:5px 3px;border-radius:7px;font-size:10px;font-weight:500;
+  color:var(--t3);background:transparent;border:none;cursor:pointer;
+  transition:all .18s;text-align:center}
+.tab.on{background:rgba(108,99,255,.25);color:var(--ac2);border:1px solid rgba(108,99,255,.3)}
+
+/* Input sections */
+.sec{display:none}.sec.on{display:block}
+.dz{border:1.5px dashed var(--b1);border-radius:14px;padding:16px 10px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
+  background:rgba(255,255,255,.02)}
+.dz:hover,.dz.drag{border-color:var(--ac);background:var(--ag)}
+.dz-ic{width:38px;height:38px;margin:0 auto 8px;background:rgba(108,99,255,.15);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;border:1px solid rgba(108,99,255,.2)}
+.dz-t{font-size:11px;font-weight:500;color:var(--t1);margin-bottom:2px}
+.dz-s{font-size:9px;color:var(--t3);line-height:1.5}
+#pi{width:100%;max-height:108px;object-fit:contain;border-radius:6px;
+  display:none;margin-bottom:5px}
+#fs,#fm{display:none}
+#mp{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+#mp img{width:46px;height:46px;border-radius:5px;object-fit:cover}
+.ta{width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+  padding:8px 10px;color:var(--t1);font-size:11px;font-family:'Inter',sans-serif;
+  resize:vertical;min-height:68px;outline:none;transition:border-color .2s}
+.ta:focus{border-color:var(--ac)}.ta::placeholder{color:var(--t3)}
+.th{font-size:9px;color:var(--t3);margin-top:4px;line-height:1.55;
+  background:rgba(108,99,255,.05);border:1px solid rgba(108,99,255,.1);
+  border-radius:7px;padding:6px 8px}
+
+/* Controls */
+.tr{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;background:var(--s2);border:1px solid var(--b0);border-radius:9px}
+.tl{font-size:11px;color:var(--t2)}
+.tog{position:relative;width:31px;height:17px}
+.tog input{opacity:0;width:0;height:0}
+.sli{position:absolute;inset:0;background:rgba(255,255,255,.1);
+  border-radius:17px;cursor:pointer;transition:.2s}
+.sli:before{content:'';position:absolute;width:11px;height:11px;
+  left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+input:checked+.sli{background:var(--ac)}
+input:checked+.sli:before{transform:translateX(14px)}
+
+.rr{padding:7px 10px;background:var(--s2);border:1px solid var(--b0);border-radius:9px}
+.rh{display:flex;justify-content:space-between;margin-bottom:6px;
+  font-size:10px;color:var(--t2)}
+.rh .v{color:var(--ac2);font-weight:500}
+input[type=range]{width:100%;accent-color:var(--ac);height:3px;cursor:pointer}
+
+.pbs{display:flex;gap:4px}
+.pb{flex:1;padding:5px 3px;border-radius:7px;font-size:10px;font-weight:500;
+  border:1px solid var(--b1);background:transparent;color:var(--t3);
+  cursor:pointer;transition:all .18s;text-align:center}
+.pb.on{background:rgba(108,99,255,.2);color:var(--ac2);border-color:rgba(108,99,255,.35)}
+
+.ah{font-size:10px;color:var(--t3);cursor:pointer;user-select:none;padding:2px 0}
+.ah:hover{color:var(--t2)}
+.ab{display:none;flex-direction:column;gap:6px;margin-top:4px}
+.ab.on{display:flex}
+
+.notice{background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.18);
+  border-radius:9px;padding:7px 9px;font-size:9px;color:#fb923c;line-height:1.65}
+.notice strong{display:block;font-size:10px;margin-bottom:2px}
+
+/* Status */
+.sp{background:var(--s2);border:1px solid var(--b0);border-radius:9px;padding:9px 10px}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.sb{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+  border-radius:20px;font-size:9px;font-weight:500}
+.bi{background:rgba(255,255,255,.05);color:var(--t2);border:1px solid var(--b1)}
+.bw{background:rgba(108,99,255,.15);color:var(--ac2);border:1px solid rgba(108,99,255,.3)}
+.bo{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.be{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+.bc{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.25)}
+.pt{height:2px;background:rgba(255,255,255,.05);border-radius:2px;
+  overflow:hidden;display:none;margin-bottom:6px}
+.pf{height:100%;background:linear-gradient(90deg,var(--ac),var(--ac2));
+  width:0%;transition:width .6s ease}
+#log{font-family:monospace;font-size:9px;color:var(--t3);line-height:1.6;
+  max-height:56px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+
+/* Info grid */
+.ig{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.ic{background:var(--s2);border:1px solid var(--b0);border-radius:7px;padding:6px 9px}
+.il{font-size:9px;color:var(--t3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em}
+.iv{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:var(--t1)}
+
+/* Buttons */
+.btn-gen{width:100%;padding:10px;border-radius:9px;
+  background:linear-gradient(135deg,var(--ac),#8b5cf6);
+  color:#fff;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;
+  border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  gap:7px;box-shadow:0 4px 18px rgba(108,99,255,.25);transition:opacity .2s,transform .15s}
+.btn-gen:hover:not(:disabled){opacity:.9;transform:translateY(-1px)}
+.btn-gen:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+.btn-stop{width:100%;padding:9px;border-radius:9px;
+  background:rgba(239,68,68,.12);color:#f87171;font-size:12px;font-weight:600;
+  border:1px solid rgba(239,68,68,.3);cursor:pointer;
+  display:none;align-items:center;justify-content:center;gap:6px;
+  transition:background .2s}
+.btn-stop:hover{background:rgba(239,68,68,.22)}
+.btn-stop.vis{display:flex}
+
+.btn-dl{width:100%;padding:8px;border-radius:9px;background:rgba(255,255,255,.04);
+  color:var(--t2);font-size:11px;font-weight:500;border:1px solid var(--b1);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:background .2s,color .2s}
+.btn-dl:hover:not(:disabled){background:rgba(255,255,255,.08);color:var(--t1)}
+.btn-dl:disabled{opacity:.35;cursor:not-allowed}
+
+/* ══ VIEWER ══ */
+#viewer{flex:1;min-width:0;display:flex;flex-direction:column;
+  background:var(--bg);position:relative;overflow:hidden}
+#gal{display:none;flex-wrap:wrap;gap:4px;padding:7px 13px;
+  border-bottom:1px solid var(--b0);background:var(--s2);flex-shrink:0}
+.gt{width:52px;height:52px;border-radius:7px;background:var(--s1);
+  border:1.5px solid var(--b1);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;font-size:17px;transition:border-color .2s;
+  flex-direction:column;gap:1px}
+.gt:hover,.gt.on{border-color:var(--ac)}
+.gt span{font-size:7px;color:var(--t3);padding:0 2px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+#vh{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:9px 15px;border-bottom:1px solid var(--b0);
+  background:rgba(10,10,15,.6);backdrop-filter:blur(8px);z-index:5}
+.vt{font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:500;
+  color:var(--t2);display:flex;align-items:center;gap:6px}
+.vd{width:6px;height:6px;border-radius:50%;background:var(--t3)}
+.vd.on{background:var(--ok);box-shadow:0 0 5px var(--ok)}
+.vc{display:flex;gap:5px}
+.vcb{width:27px;height:27px;border-radius:7px;background:rgba(255,255,255,.04);
+  border:1px solid var(--b1);color:var(--t2);cursor:pointer;font-size:12px;
+  display:flex;align-items:center;justify-content:center;transition:background .2s,color .2s}
+.vcb:hover{background:rgba(255,255,255,.09);color:var(--t1)}
+.vcb.on{background:rgba(108,99,255,.2);color:var(--ac2);border-color:rgba(108,99,255,.3)}
+
+#cw{flex:1;min-height:0;position:relative}
+#cv{display:block;width:100%;height:100%}
+
+/* Empty state */
+#es{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:13px;pointer-events:none;z-index:2}
+.orb{width:84px;height:84px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,rgba(108,99,255,.3),rgba(108,99,255,.05));
+  border:1px solid rgba(108,99,255,.2);display:flex;align-items:center;
+  justify-content:center;font-size:33px;animation:fl 3s ease-in-out infinite}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.es-t{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:var(--t2)}
+.es-s{font-size:10px;color:var(--t3)}
+
+/* Generation HUD (replaces old overlay) */
+#hud{position:absolute;bottom:44px;left:50%;transform:translateX(-50%);
+  z-index:8;display:none;flex-direction:column;align-items:center;gap:6px;
+  background:rgba(10,10,15,.75);backdrop-filter:blur(10px);
+  border:1px solid var(--b1);border-radius:12px;
+  padding:12px 20px;min-width:240px;text-align:center}
+.hud-phase{font-family:'Space Grotesk',sans-serif;font-size:13px;
+  font-weight:600;color:var(--t1)}
+.hud-sub{font-size:10px;color:var(--t3)}
+.hud-bar{width:100%;height:2px;background:rgba(255,255,255,.08);
+  border-radius:2px;overflow:hidden;margin-top:4px}
+.hud-fill{height:100%;background:linear-gradient(90deg,var(--ac),var(--ac2));
+  width:0%;transition:width .6s ease;border-radius:2px}
+
+/* Gen thumb (text mode) */
+#gt2{position:absolute;top:58px;right:10px;z-index:3;display:none;
+  flex-direction:column;align-items:flex-end;gap:3px}
+#gt2 img{width:100px;border-radius:7px;border:1px solid var(--b1)}
+#gt2 span{font-size:9px;color:var(--t3);background:rgba(10,10,15,.8);
+  padding:2px 6px;border-radius:8px}
+
+#vb{flex-shrink:0;padding:6px 15px;border-top:1px solid var(--b0);
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,10,15,.6);backdrop-filter:blur(8px);font-size:9px;color:var(--t3)}
+.hn{display:flex;gap:11px}
+.hk{background:rgba(255,255,255,.07);border:1px solid var(--b1);
+  border-radius:3px;padding:1px 4px;font-size:8px;color:var(--t2)}
+
+/* Toast */
+#toast{position:fixed;bottom:16px;right:16px;background:var(--s2);
+  border:1px solid var(--b1);border-radius:9px;padding:8px 12px;
+  font-size:11px;color:var(--t1);display:flex;align-items:center;gap:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  transform:translateY(60px);opacity:0;transition:transform .3s,opacity .3s;z-index:200}
+#toast.show{transform:translateY(0);opacity:1}
+</style>
+</head>
+<body>
+
+<header id="top">
+  <div class="logo"><div class="logo-i">🧊</div>Forge<span>3D</span></div>
+  <div class="chips">
+    <div class="chip c-or">⚡ 100% Local</div>
+    <div class="chip c-ac">TripoSR Engine</div>
+    <div class="chip c-ok">● Running</div>
+  </div>
+</header>
+
+<div id="app">
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside id="sb">
+    <div id="sb-body">
+
+      <div>
+        <div class="slbl">Mode</div>
+        <div class="tabs">
+          <button class="tab on" data-mode="single">Single</button>
+          <button class="tab" data-mode="multiple">Multi</button>
+          <button class="tab" data-mode="text">Text → 3D</button>
+        </div>
+      </div>
+
+      <!-- Single -->
+      <div id="sec-single" class="sec on">
+        <div class="slbl">Input Image</div>
+        <div class="dz" id="dz-s" onclick="$('fs').click()">
+          <img id="pi" alt="">
+          <div id="dz-si">
+            <div class="dz-ic">📷</div>
+            <div class="dz-t">Drop image here</div>
+            <div class="dz-s">or click · PNG · JPG · WebP</div>
+          </div>
+        </div>
+        <input type="file" id="fs" accept="image/*">
+      </div>
+
+      <!-- Multiple -->
+      <div id="sec-multiple" class="sec">
+        <div class="slbl">Input Images (up to 6)</div>
+        <div class="dz" id="dz-m" onclick="$('fm').click()">
+          <div class="dz-ic">🖼</div>
+          <div class="dz-t">Drop multiple images</div>
+          <div class="dz-s">Each → its own 3D model</div>
+        </div>
+        <input type="file" id="fm" accept="image/*" multiple>
+        <div id="mp"></div>
+      </div>
+
+      <!-- Text -->
+      <div id="sec-text" class="sec">
+        <div class="slbl">Text Prompt</div>
+        <textarea class="ta" id="tp" placeholder="A red ceramic coffee mug..."></textarea>
+        <div class="th">💡 One object, plain background. Uses Pollinations.ai for the image (with a local shape fallback if that's unreachable) → TripoSR.</div>
+      </div>
+
+      <!-- Preprocessing -->
+      <div>
+        <div class="slbl">Preprocessing</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div class="tr">
+            <span class="tl">Remove Background</span>
+            <label class="tog"><input type="checkbox" id="rbg" checked><span class="sli"></span></label>
+          </div>
+          <div class="rr">
+            <div class="rh"><span>Foreground Ratio</span><span class="v" id="fv">0.85</span></div>
+            <input type="range" id="fr" min="0.5" max="1.0" step="0.05" value="0.85"
+              oninput="$('fv').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Speed -->
+      <div>
+        <div class="slbl">Speed / Detail</div>
+        <div class="pbs" id="spd">
+          <button class="pb" data-mc="64" data-n="~1 min">⚡ Fast</button>
+          <button class="pb on" data-mc="128" data-n="~2-4 min">⚖ Balanced</button>
+          <button class="pb" data-mc="256" data-n="~8-15 min">🔬 Detailed</button>
+          <button class="pb" data-mc="320" data-n="~15-25 min">💎 Studio</button>
+        </div>
+        <div style="font-size:9px;color:var(--t3);margin-top:4px;text-align:center" id="sn">Estimated ~2-4 min on CPU</div>
+      </div>
+
+      <!-- Polish -->
+      <div>
+        <div class="slbl">Surface Polish</div>
+        <div class="pbs" id="pol">
+          <button class="pb" data-p="0">Off</button>
+          <button class="pb" data-p="1">Light</button>
+          <button class="pb on" data-p="2">Medium</button>
+          <button class="pb" data-p="3">Heavy</button>
+        </div>
+        <div style="font-size:9px;color:var(--t3);margin-top:3px;line-height:1.5">Cleans up raw geometry, then Taubin-smooths — removes noise, preserves shape &amp; colors.</div>
+      </div>
+
+      <!-- Studio Texture -->
+      <div>
+        <div class="slbl">Output Quality</div>
+        <div class="tr">
+          <span class="tl">Studio Texture <span style="color:var(--t3)">(experimental)</span></span>
+          <label class="tog"><input type="checkbox" id="stex"><span class="sli"></span></label>
+        </div>
+        <div style="font-size:9px;color:var(--t3);margin-top:4px;line-height:1.5">Bakes a real UV-mapped texture instead of per-vertex color — crisper detail, independent of mesh resolution. Needs optional packages (see README); automatically falls back to enhanced vertex colors if unavailable, so this never blocks a generation.</div>
+      </div>
+
+      <!-- Advanced -->
+      <div>
+        <div class="ah" id="ah">▶ Advanced Controls</div>
+        <div class="ab" id="ab">
+          <div class="rr" style="margin-top:4px">
+            <div class="rh"><span>MC Resolution</span><span class="v" id="mrv">128</span></div>
+            <input type="range" id="mr" min="32" max="320" step="32" value="128"
+              oninput="$('mrv').textContent=this.value">
+          </div>
+          <div class="rr">
+            <div class="rh"><span>Density Threshold</span><span class="v" id="tv">25.0</span></div>
+            <input type="range" id="thr" min="5" max="60" step="2.5" value="25"
+              oninput="$('tv').textContent=parseFloat(this.value).toFixed(1)">
+          </div>
+          <div style="font-size:9px;color:var(--t3);line-height:1.55;padding:1px">
+            <b style="color:var(--t2)">MC Res:</b> higher = more detail + slower. 320 matches TripoSR's own max.<br>
+            <b style="color:var(--t2)">Threshold:</b> lower = more mesh (may add noise).<br>
+            Time estimates are rough and vary a lot by CPU — the presets above are a starting point, not a promise.
+          </div>
+        </div>
+      </div>
+
+      <div class="notice">
+        <strong>⚠ Quality note</strong>
+        Best with front-facing, isolated objects on white/transparent bg. Colors &amp; surface are auto-enhanced.
+      </div>
+    </div>
+
+    <!-- Sticky footer -->
+    <div id="sb-foot">
+      <div class="sp">
+        <div class="sh">
+          <span style="font-size:9px;color:var(--t3)">Pipeline</span>
+          <span class="sb bi" id="badge">● Idle</span>
+        </div>
+        <div class="pt" id="pt"><div class="pf" id="pf"></div></div>
+        <div id="log">Ready. Upload an image to start.</div>
+      </div>
+      <div class="ig">
+        <div class="ic"><div class="il">Vertices</div><div class="iv" id="iv">—</div></div>
+        <div class="ic"><div class="il">Faces</div><div class="iv" id="iff">—</div></div>
+        <div class="ic"><div class="il">Format</div><div class="iv" id="ifmt">—</div></div>
+        <div class="ic"><div class="il">Mode</div><div class="iv" id="imod" style="font-size:10px;padding-top:1px">—</div></div>
+      </div>
+      <button class="btn-gen" id="gb" disabled><span id="gi">✦</span><span id="gl">Generate 3D Model</span></button>
+      <button class="btn-stop" id="sb2">⬛ Stop Generation</button>
+      <button class="btn-dl" id="db" disabled>⬇ Download GLB</button>
+    </div>
+  </aside>
+
+  <!-- ═══ VIEWER ═══ -->
+  <div id="viewer">
+    <div id="gal"></div>
+    <div id="vh">
+      <div class="vt"><div class="vd" id="vd"></div><span id="mn">No model loaded</span></div>
+      <div class="vc">
+        <button class="vcb" id="bw" title="Wireframe">⬡</button>
+        <button class="vcb" id="br" title="Reset camera">⊙</button>
+        <button class="vcb" id="bb" title="Toggle background">◐</button>
+        <button class="vcb" id="bs" title="Auto-rotate">↻</button>
+      </div>
+    </div>
+    <div id="cw">
+      <div id="es">
+        <div class="orb">🧊</div>
+        <div class="es-t">Your 3D model appears here</div>
+        <div class="es-s">Upload an image and hit Generate</div>
+      </div>
+      <!-- Generation HUD (floating above canvas) -->
+      <div id="hud">
+        <div class="hud-phase" id="hm">Initialising…</div>
+        <div class="hud-sub" id="hs">Running locally on your CPU</div>
+        <div class="hud-bar"><div class="hud-fill" id="hf"></div></div>
+      </div>
+      <!-- Text mode: generated image preview -->
+      <div id="gt2"><span>AI-generated input</span><img id="gi2" alt=""></div>
+      <canvas id="cv"></canvas>
+    </div>
+    <div id="vb">
+      <div class="hn">
+        <span><span class="hk">Drag</span> Rotate</span>
+        <span><span class="hk">Scroll</span> Zoom</span>
+        <span><span class="hk">R-drag</span> Pan</span>
+      </div>
+      <span id="ri">Forge3D · Built by Ayush Kumar</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span id="tic">✓</span> <span id="tm">Done</span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+function toast(msg,ic='✓'){$('tm').textContent=msg;$('tic').textContent=ic;
+  $('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),3200)}
+function log(m){const e=$('log');e.textContent+='\n'+m;e.scrollTop=e.scrollHeight}
+function setBadge(t,txt){const e=$('badge');e.className='sb';
+  e.classList.add({idle:'bi',work:'bw',ok:'bo',err:'be',cancel:'bc'}[t]||'bi');
+  e.textContent=({idle:'●',work:'◌',ok:'✓',err:'✕',cancel:'◼'}[t]||'●')+' '+txt}
+function setProgress(p){const t=$('pt'),f=$('pf');
+  if(p===null){t.style.display='none';return}t.style.display='block';f.style.width=p+'%'}
+function setHUD(show,msg,sub,pct){
+  $('hud').style.display=show?'flex':'none';
+  if(msg)$('hm').textContent=msg;if(sub)$('hs').textContent=sub;
+  if(pct!=null)$('hf').style.width=pct+'%'}
+
+/* ════════════════════════════════════════
+   THREE.JS SCENE
+════════════════════════════════════════ */
+let scene,camera,renderer,controls,curMesh=null;
+let wireOn=false,darkBg=true,spinning=false;
+
+function initThree(){
+  const canvas=$('cv'), wrap=$('cw');
+  scene=new THREE.Scene();scene.background=new THREE.Color('#0d0d14');
+  const W=wrap.clientWidth||800, H=wrap.clientHeight||600;
+  camera=new THREE.PerspectiveCamera(42,W/H,.01,200);
+  camera.position.set(0,1.2,4);
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+  renderer.setSize(W,H);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.3;
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true;controls.dampingFactor=.07;
+  controls.minDistance=.3;controls.maxDistance=30;
+  scene.add(new THREE.AmbientLight(0xffffff,.55));
+  const k=new THREE.DirectionalLight(0xffffff,1.4);k.position.set(3,6,4);scene.add(k);
+  const f=new THREE.DirectionalLight(0x8888ff,.5);f.position.set(-3,-1,-3);scene.add(f);
+  scene.add(new THREE.HemisphereLight(0x6655aa,0x222222,.4));
+  const g=new THREE.GridHelper(6,24,'#2a2a3a','#1e1e2e');
+  g.material.opacity=.35;g.material.transparent=true;scene.add(g);
+  (function anim(){requestAnimationFrame(anim);
+    if(spinning&&curMesh)curMesh.rotation.y+=.008;
+    if(fa)fa.update(.016);
+    controls.update();renderer.render(scene,camera)})();
+  new ResizeObserver(()=>{const W2=wrap.clientWidth,H2=wrap.clientHeight;
+    if(!W2||!H2)return;camera.aspect=W2/H2;camera.updateProjectionMatrix();
+    renderer.setSize(W2,H2)}).observe(wrap);
+  $('br').onclick=()=>{camera.position.set(0,1.2,4);controls.target.set(0,0,0);controls.update()};
+  $('bw').onclick=function(){wireOn=!wireOn;this.classList.toggle('on',wireOn);
+    if(curMesh)curMesh.traverse(o=>{if(o.isMesh&&o.material)o.material.wireframe=wireOn})};
+  $('bb').onclick=function(){darkBg=!darkBg;this.classList.toggle('on',!darkBg);
+    scene.background=new THREE.Color(darkBg?'#0d0d14':'#e8e8f0')};
+  $('bs').onclick=function(){spinning=!spinning;this.classList.toggle('on',spinning)};
+}
+
+function fitCam(obj){
+  const box=new THREE.Box3().setFromObject(obj);
+  const sz=box.getSize(new THREE.Vector3()),ctr=box.getCenter(new THREE.Vector3());
+  const d=Math.max(sz.x,sz.y,sz.z);
+  camera.position.set(ctr.x,ctr.y+d*.4,ctr.z+d*2.2);
+  controls.target.copy(ctr);controls.update()}
+
+function loadModel(fid,name){
+  return new Promise((res,rej)=>{
+    const loader=new THREE.GLTFLoader();
+    loader.load('/preview/'+fid,gltf=>{
+      if(curMesh)scene.remove(curMesh);
+      curMesh=gltf.scene;scene.add(curMesh);fitCam(curMesh);
+      if(wireOn)curMesh.traverse(o=>{if(o.isMesh&&o.material)o.material.wireframe=true});
+      let v=0,f=0;
+      curMesh.traverse(o=>{if(o.isMesh&&o.geometry){
+        v+=o.geometry.attributes.position?.count||0;
+        f+=o.geometry.index?o.geometry.index.count/3:(o.geometry.attributes.position?.count||0)/3}});
+      $('iv').textContent=v.toLocaleString();$('iff').textContent=Math.round(f).toLocaleString();
+      $('ifmt').textContent='GLB';$('mn').textContent=(name||fid)+'.glb';
+      $('vd').classList.add('on');curFileId=fid;
+      $('ri').textContent=v.toLocaleString()+' verts · '+Math.round(f).toLocaleString()+' faces · Forge3D';
+      res()},undefined,rej)})}
+
+/* ════════════════════════════════════════
+   FORMATION ANIMATION
+════════════════════════════════════════ */
+let fa = null;
+
+class FormationAnim {
+  constructor(sc){
+    this.sc=sc; this.t=0; this.phase='particles'; this.gp=0;
+    this._build();
+  }
+
+  _build(){
+    const N=2200;
+    const pGeo=new THREE.BufferGeometry();
+    const pos=new Float32Array(N*3), col=new Float32Array(N*3);
+    this.pOri=new Float32Array(N*3); this.pTgt=new Float32Array(N*3);
+
+    for(let i=0;i<N;i++){
+      const r=2.5+Math.random()*2, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+      pos[i*3]=this.pOri[i*3]=r*Math.sin(ph)*Math.cos(th);
+      pos[i*3+1]=this.pOri[i*3+1]=r*Math.sin(ph)*Math.sin(th);
+      pos[i*3+2]=this.pOri[i*3+2]=r*Math.cos(ph);
+      const r2=.72+Math.random()*.18, th2=Math.random()*Math.PI*2, ph2=Math.acos(2*Math.random()-1);
+      this.pTgt[i*3]=r2*Math.sin(ph2)*Math.cos(th2);
+      this.pTgt[i*3+1]=r2*Math.sin(ph2)*Math.sin(th2);
+      this.pTgt[i*3+2]=r2*Math.cos(ph2);
+      col[i*3]=.25+Math.random()*.35; col[i*3+1]=.18+Math.random()*.25; col[i*3+2]=.75+Math.random()*.25;
+    }
+    pGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    pGeo.setAttribute('color',new THREE.BufferAttribute(col,3));
+    this.pPos=pos;
+    this.pMat=new THREE.PointsMaterial({size:.024,vertexColors:true,transparent:true,opacity:0,
+      blending:THREE.AdditiveBlending,depthWrite:false});
+    this.pMesh=new THREE.Points(pGeo,this.pMat); this.sc.add(this.pMesh);
+
+    // Wireframe sphere
+    this.wMat=new THREE.MeshBasicMaterial({color:0x6c63ff,wireframe:true,transparent:true,opacity:0});
+    this.wMesh=new THREE.Mesh(new THREE.IcosahedronGeometry(.88,4),this.wMat); this.sc.add(this.wMesh);
+
+    // Solid fill
+    this.sMat=new THREE.MeshPhongMaterial({color:0x6c63ff,emissive:0x221850,
+      transparent:true,opacity:0,shininess:80});
+    this.sMesh=new THREE.Mesh(new THREE.IcosahedronGeometry(.85,4),this.sMat); this.sc.add(this.sMesh);
+
+    // Glow ring
+    this.rMat=new THREE.MeshBasicMaterial({color:0xa78bfa,transparent:true,opacity:0});
+    this.rMesh=new THREE.Mesh(new THREE.TorusGeometry(1.02,.012,8,72),this.rMat); this.sc.add(this.rMesh);
+
+    this._objs=[this.pMesh,this.wMesh,this.sMesh,this.rMesh];
+  }
+
+  setPhase(phase,pct){this.phase=phase; this.gp=pct/100;}
+
+  update(dt){
+    this.t+=dt;
+    const t=this.t, gp=this.gp;
+    const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
+
+    this.pMesh.rotation.y=t*.32; this.pMesh.rotation.x=Math.sin(t*.13)*.18;
+    this.wMesh.rotation.y=t*.42; this.sMesh.rotation.y=t*.42;
+    this.rMesh.rotation.y=t*.55; this.rMesh.rotation.x=t*.18;
+
+    const pos=this.pPos, N=pos.length/3;
+
+    if(this.phase==='particles'){
+      this.pMat.opacity=Math.min(1,gp*12);
+      this.wMat.opacity=0; this.sMat.opacity=0; this.rMat.opacity=0;
+      for(let i=0;i<N;i++){
+        pos[i*3]  =this.pOri[i*3]  *(1-gp*.25)+Math.sin(t*.6+i*.05)*.08;
+        pos[i*3+1]=this.pOri[i*3+1]*(1-gp*.25)+Math.cos(t*.5+i*.05)*.08;
+        pos[i*3+2]=this.pOri[i*3+2]*(1-gp*.25);
+      }
+    } else if(this.phase==='converge'){
+      const cp=ease(Math.min(1,(gp-.08)/.20));
+      this.pMat.opacity=1; this.wMat.opacity=cp*.35;
+      this.sMat.opacity=0; this.rMat.opacity=cp*.5;
+      for(let i=0;i<N;i++){
+        const ox=this.pOri[i*3],oy=this.pOri[i*3+1],oz=this.pOri[i*3+2];
+        const tx=this.pTgt[i*3],ty=this.pTgt[i*3+1],tz=this.pTgt[i*3+2];
+        pos[i*3]  =ox+(tx-ox)*cp+Math.sin(t+i*.09)*(1-cp)*.12;
+        pos[i*3+1]=oy+(ty-oy)*cp+Math.cos(t+i*.09)*(1-cp)*.12;
+        pos[i*3+2]=oz+(tz-oz)*cp;
+      }
+    } else if(this.phase==='wireframe'){
+      const wp=ease(Math.min(1,(gp-.28)/.22));
+      this.pMat.opacity=1-wp*.8; this.wMat.opacity=Math.min(1,wp*1.6);
+      this.sMat.opacity=0; this.rMat.opacity=wp;
+      for(let i=0;i<N;i++){
+        pos[i*3]=this.pTgt[i*3]; pos[i*3+1]=this.pTgt[i*3+1]; pos[i*3+2]=this.pTgt[i*3+2];}
+    } else if(this.phase==='fill'){
+      const fp=ease(Math.min(1,(gp-.50)/.32));
+      this.pMat.opacity=(1-fp)*.3; this.wMat.opacity=1-fp*.6;
+      this.sMat.opacity=fp; this.rMat.opacity=1;
+      this.sMat.color.setHSL(.73+fp*.04,.78,.38+fp*.12);
+      this.sMat.emissive.setHSL(.72,.8,.06+Math.sin(t*3)*.03);
+    } else if(this.phase==='materialise'){
+      const mp=Math.min(1,(gp-.82)/.14);
+      this.pMat.opacity=0; this.wMat.opacity=(1-mp)*.4;
+      this.sMat.opacity=1; this.rMat.opacity=1-mp*.8;
+      this.sMat.emissive.setHSL(.72,.9,.08+Math.sin(t*5)*.06);
+    }
+    this.pMesh.geometry.attributes.position.needsUpdate=true;
+  }
+
+  destroy(){this._objs.forEach(o=>{this.sc.remove(o);o.geometry.dispose();o.material.dispose()});this._objs=[];}
+}
+
+/* ════════════════════════════════════════
+   STATE
+════════════════════════════════════════ */
+let imageFile=null, multiFiles=[], curFileId=null;
+let currentMode='single', currentPolish=2, currentJobId=null;
+let activeES=null, multiResults=[];
+
+/* ════════════════════════════════════════
+   MODE TABS
+════════════════════════════════════════ */
+document.querySelectorAll('.tab').forEach(b=>{b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  b.classList.add('on'); currentMode=b.dataset.mode;
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  $('sec-'+currentMode).classList.add('on');
+  $('imod').textContent=currentMode; checkReady();}});
+
+/* ════════════════════════════════════════
+   SPEED PRESETS
+════════════════════════════════════════ */
+const spN=['~1 min','~2-4 min','~8-15 min','~15-25 min'];
+document.querySelectorAll('#spd .pb').forEach((b,i)=>{b.onclick=()=>{
+  document.querySelectorAll('#spd .pb').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); $('mr').value=b.dataset.mc; $('mrv').textContent=b.dataset.mc;
+  $('sn').textContent='Estimated '+spN[i]+' on CPU';}});
+
+/* ════════════════════════════════════════
+   POLISH PRESETS
+════════════════════════════════════════ */
+document.querySelectorAll('#pol .pb').forEach(b=>{b.onclick=()=>{
+  document.querySelectorAll('#pol .pb').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); currentPolish=parseInt(b.dataset.p);}});
+
+/* Advanced */
+$('ah').onclick=function(){const ab=$('ab'),on=ab.classList.toggle('on');
+  this.textContent=(on?'▼':'▶')+' Advanced Controls';};
+
+/* ════════════════════════════════════════
+   FILE HANDLING
+════════════════════════════════════════ */
+function checkReady(){
+  const ok=currentMode==='single'?!!imageFile
+    :currentMode==='multiple'?multiFiles.length>0
+    :!!$('tp').value.trim();
+  $('gb').disabled=!ok;}
+
+function handleSingle(f){
+  if(!f||!f.type.startsWith('image/'))return;
+  imageFile=f;
+  const r=new FileReader();
+  r.onload=ev=>{$('pi').src=ev.target.result;$('pi').style.display='block';
+    $('dz-si').style.display='none';};
+  r.readAsDataURL(f); checkReady();
+  log('Loaded: '+f.name+' ('+Math.round(f.size/1024)+' KB)');}
+
+function handleMulti(files){
+  multiFiles=Array.from(files).slice(0,6);
+  const p=$('mp');p.innerHTML='';
+  multiFiles.forEach(f=>{const r=new FileReader();
+    r.onload=ev=>{const i=document.createElement('img');i.src=ev.target.result;i.title=f.name;p.appendChild(i);};
+    r.readAsDataURL(f);});
+  checkReady(); log(multiFiles.length+' file(s) selected');}
+
+// Single image drop/select
+$('dz-s').addEventListener('dragover',e=>{e.preventDefault();$('dz-s').classList.add('drag')});
+$('dz-s').addEventListener('dragleave',()=>$('dz-s').classList.remove('drag'));
+$('dz-s').addEventListener('drop',e=>{e.preventDefault();$('dz-s').classList.remove('drag');
+  handleSingle(e.dataTransfer.files[0]);});
+$('fs').onchange=e=>handleSingle(e.target.files[0]);
+
+// Multi image drop/select — pass full FileList, not files[0]
+$('dz-m').addEventListener('dragover',e=>{e.preventDefault();$('dz-m').classList.add('drag')});
+$('dz-m').addEventListener('dragleave',()=>$('dz-m').classList.remove('drag'));
+$('dz-m').addEventListener('drop',e=>{e.preventDefault();$('dz-m').classList.remove('drag');
+  handleMulti(e.dataTransfer.files);});
+$('fm').onchange=e=>handleMulti(e.target.files);
+$('tp').oninput=checkReady;
+
+/* ════════════════════════════════════════
+   GALLERY (multi mode)
+════════════════════════════════════════ */
+function buildGallery(results){
+  const g=$('gal');
+  if(results.length<=1){g.style.display='none';return;}
+  g.innerHTML='';g.style.display='flex';
+  results.forEach((r,i)=>{
+    const d=document.createElement('div');d.className='gt'+(i===0?' on':'');
+    d.innerHTML='🧊<span>'+(r.name||r.file_id)+'</span>';
+    d.onclick=()=>{document.querySelectorAll('.gt').forEach(t=>t.classList.remove('on'));
+      d.classList.add('on'); loadModel(r.file_id,r.name||'model'); curFileId=r.file_id; $('db').disabled=false;};
+    g.appendChild(d);});}
+
+/* ════════════════════════════════════════
+   CANCEL
+════════════════════════════════════════ */
+$('sb2').onclick=async()=>{
+  if(!currentJobId)return;
+  await fetch('/cancel/'+currentJobId,{method:'POST'});
+  if(activeES){activeES.close();activeES=null;}
+  endGeneration('cancelled');
+  setBadge('cancel','Cancelled');log('⬛ Generation stopped.');toast('Stopped','⬛');};
+
+function endGeneration(state){
+  if(fa){fa.destroy();fa=null;}
+  setHUD(false);
+  $('sb2').classList.remove('vis');
+  $('gb').disabled=false; $('gl').textContent='Generate 3D Model'; $('gi').textContent='✦';
+  setProgress(null);
+  if(state!=='cancelled'&&state!=='error') checkReady();
+  currentJobId=null;}
+
+/* ════════════════════════════════════════
+   BROWSER-SIDE TEXT → IMAGE
+════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════
+   CANVAS PLACEHOLDER — Physical rendering with watermark
+   Pixel (0,0) = RGB(1,2,3) signals canvas to the server.
+   Server reads this pixel to skip rembg + orientation fix.
+══════════════════════════════════════════════════════════ */
+function _norm(v){const l=Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);return v.map(x=>x/l)}
+function _dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
+function _parseHex(h){return{r:parseInt(h.slice(1,3),16)/255,g:parseInt(h.slice(3,5),16)/255,b:parseInt(h.slice(5,7),16)/255}}
+function _adjHex(h,amt){
+  const n=parseInt(h.slice(1),16);
+  const cl=(v)=>Math.min(255,Math.max(0,v));
+  const r=cl(((n>>16)&255)+amt),g=cl(((n>>8)&255)+amt),b=cl((n&255)+amt);
+  return`#${((r<<16)|(g<<8)|b).toString(16).padStart(6,'0')}`;
+}
+
+/* Add subtle surface noise so TripoSR sees texture (not flat synthetic) */
+function _addNoise(d, size, amount=6) {
+  for(let i=0;i<size*size*4;i+=4){
+    if(d[i+3]<200) continue; // skip background
+    const n=(Math.random()-0.5)*amount;
+    d[i  ]=Math.min(255,Math.max(0,d[i  ]+n));
+    d[i+1]=Math.min(255,Math.max(0,d[i+1]+n));
+    d[i+2]=Math.min(255,Math.max(0,d[i+2]+n));
+  }
+}
+
+/* Set pixel watermark and stamp it after all rendering */
+function _applyWatermark(ctx, size) {
+  const id = ctx.getImageData(0,0,1,1);
+  id.data[0]=1; id.data[1]=2; id.data[2]=3; id.data[3]=255;
+  ctx.putImageData(id,0,0);
+}
+
+/* Lambert+Phong sphere */
+function _renderSphere(ctx, size, colorHex) {
+  const {r:rc,g:gc,b:bc}=_parseHex(colorHex);
+  const cx=size/2,cy=size/2,rad=size*0.42;
+  ctx.fillStyle='rgb(127,127,127)'; ctx.fillRect(0,0,size,size);
+  const imgData=ctx.getImageData(0,0,size,size); const d=imgData.data;
+  const lv=_norm([-0.58,-0.58,0.75]);
+  const hv=_norm([-0.58,-0.58,1.75]);
+  const rv=_norm([0.7,0.5,0.5]);
+  const amb=0.25,shin=80,specStr=0.9,rimStr=0.30;
+  for(let y=0;y<size;y++){for(let x=0;x<size;x++){
+    const dx=(x-cx)/rad,dy=(y-cy)/rad,d2=dx*dx+dy*dy;
+    if(d2>1.0) continue;
+    const dz=Math.sqrt(1-d2);
+    const diff=Math.max(0,_dot([dx,dy,dz],lv));
+    const shade=diff*(1-amb)+amb;
+    const spec=Math.pow(Math.max(0,_dot([dx,dy,dz],hv)),shin)*specStr;
+    const rim =Math.pow(Math.max(0,_dot([dx,dy,dz],rv)),6)*rimStr;
+    const i=(y*size+x)*4;
+    d[i  ]=Math.min(255,(shade*rc+spec+rim*rc)*255);
+    d[i+1]=Math.min(255,(shade*gc+spec+rim*gc)*255);
+    d[i+2]=Math.min(255,(shade*bc+spec+rim*bc)*255);
+    d[i+3]=255;
+  }}
+  _addNoise(d, size, 5);
+  ctx.putImageData(imgData,0,0);
+  ctx.save(); ctx.globalAlpha=0.18; ctx.filter='blur(10px)'; ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(cx+rad*0.12,cy+rad+rad*0.06,rad*1.1,rad*0.15,0,0,Math.PI*2);
+  ctx.fill(); ctx.restore();
+  _applyWatermark(ctx, size);
+}
+
+/* Lambert cylinder */
+function _renderCylinder(ctx, size, colorHex) {
+  const {r:rc,g:gc,b:bc}=_parseHex(colorHex);
+  const cx=size/2,cy=size/2,rx=size*0.22,h=size*0.38,ytop=cy-h,ybot=cy+h;
+  ctx.fillStyle='rgb(127,127,127)'; ctx.fillRect(0,0,size,size);
+  const imgData=ctx.getImageData(0,0,size,size); const d=imgData.data;
+  const lv=_norm([-0.6,0,0.8]); const amb=0.28,spec=0.55,shin=40;
+  for(let y=Math.floor(ytop);y<=Math.ceil(ybot);y++){
+    for(let x=Math.floor(cx-rx);x<=Math.ceil(cx+rx);x++){
+      if(x<0||x>=size||y<0||y>=size) continue;
+      const nx=(x-cx)/rx; if(Math.abs(nx)>1) continue;
+      const nz=Math.sqrt(1-nx*nx);
+      const diff=Math.max(0,nx*lv[0]+nz*lv[2]);
+      const shade=diff*(1-amb)+amb;
+      const hv=_norm([lv[0],lv[1],lv[2]+1]);
+      const sp=Math.pow(Math.max(0,nx*hv[0]+nz*hv[2]),shin)*spec;
+      const i=(y*size+x)*4;
+      d[i  ]=Math.min(255,(shade*rc+sp)*255);
+      d[i+1]=Math.min(255,(shade*gc+sp)*255);
+      d[i+2]=Math.min(255,(shade*bc+sp)*255);
+      d[i+3]=255;
+    }
+  }
+  _addNoise(d, size, 4);
+  ctx.putImageData(imgData,0,0);
+  const lt=_adjHex(colorHex,50);
+  ctx.fillStyle=lt;
+  ctx.beginPath(); ctx.ellipse(cx,ytop,rx,rx*0.28,0,0,Math.PI*2); ctx.fill();
+  ctx.save(); ctx.globalAlpha=0.16; ctx.filter='blur(8px)'; ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(cx+rx*0.1,ybot+rx*0.12,rx*1.1,rx*0.18,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  _applyWatermark(ctx, size);
+}
+
+/* 3-face lit box */
+function _renderBox(ctx, size, colorHex) {
+  ctx.fillStyle='rgb(127,127,127)'; ctx.fillRect(0,0,size,size);
+  const cx=size/2,cy=size/2,s=size*0.28;
+  const lt=_adjHex(colorHex,55),mid=colorHex,dk=_adjHex(colorHex,-60);
+  const ox=s*0.55,oy=s*0.28;
+  ctx.fillStyle=mid; ctx.fillRect(cx-s,cy-s,s*2,s*2);
+  ctx.fillStyle=lt;
+  ctx.beginPath(); ctx.moveTo(cx-s,cy-s); ctx.lineTo(cx-s+ox,cy-s-oy);
+  ctx.lineTo(cx+s+ox,cy-s-oy); ctx.lineTo(cx+s,cy-s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=dk;
+  ctx.beginPath(); ctx.moveTo(cx+s,cy-s); ctx.lineTo(cx+s+ox,cy-s-oy);
+  ctx.lineTo(cx+s+ox,cy+s-oy); ctx.lineTo(cx+s,cy+s); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1.5; ctx.strokeRect(cx-s,cy-s,s*2,s*2);
+  ctx.save(); ctx.globalAlpha=0.16; ctx.filter='blur(9px)'; ctx.fillStyle='#000';
+  ctx.fillRect(cx-s+12,cy+s+4,s*2+ox,18); ctx.restore();
+  _applyWatermark(ctx, size);
+}
+
+/* Chair: seat + 4 legs + backrest */
+function _renderChair(ctx, size, colorHex) {
+  ctx.fillStyle='rgb(127,127,127)'; ctx.fillRect(0,0,size,size);
+  const cx=size/2,cy=size/2;
+  const sw=size*0.38,sh=size*0.06; // seat width/height
+  const sy=cy+size*0.05;            // seat Y
+  const lh=size*0.30,lw=size*0.04; // leg height/width
+  const bh=size*0.32,bw=size*0.06; // backrest height/width
+  const lt=_adjHex(colorHex,40),mid=colorHex,dk=_adjHex(colorHex,-50);
+  // Legs
+  ctx.fillStyle=dk;
+  ctx.fillRect(cx-sw/2,      sy+sh, lw, lh); // front-left
+  ctx.fillRect(cx+sw/2-lw,   sy+sh, lw, lh); // front-right
+  ctx.fillRect(cx-sw/2+lw*2, sy+sh, lw, lh*.8); // back-left (shorter, depth)
+  ctx.fillRect(cx+sw/2-lw*3, sy+sh, lw, lh*.8); // back-right
+  // Seat top
+  ctx.fillStyle=mid;
+  ctx.fillRect(cx-sw/2, sy, sw, sh);
+  // Seat top face (lighter)
+  ctx.fillStyle=lt;
+  const ox=size*0.05,oy=size*0.03;
+  ctx.beginPath(); ctx.moveTo(cx-sw/2,sy); ctx.lineTo(cx-sw/2+ox,sy-oy);
+  ctx.lineTo(cx+sw/2+ox,sy-oy); ctx.lineTo(cx+sw/2,sy); ctx.closePath(); ctx.fill();
+  // Backrest
+  ctx.fillStyle=mid;
+  ctx.fillRect(cx-sw/2, sy-bh, bw, bh);
+  ctx.fillRect(cx+sw/2-bw, sy-bh, bw, bh);
+  ctx.fillRect(cx-sw/2, sy-bh, sw, bw);
+  ctx.fillRect(cx-sw/2, sy-bh/2, sw, bw);
+  // Shadow
+  ctx.save(); ctx.globalAlpha=0.16; ctx.filter='blur(9px)'; ctx.fillStyle='#000';
+  ctx.fillRect(cx-sw/2+8,sy+lh+sh+4,sw+ox,14); ctx.restore();
+  _applyWatermark(ctx, size);
+}
+
+/* Elongated rounded shape for shoes/phones */
+function _renderElongated(ctx, size, colorHex, wide=false) {
+  const {r:rc,g:gc,b:bc}=_parseHex(colorHex);
+  const cx=size/2,cy=size/2;
+  const rw=wide?size*0.35:size*0.22, rh=size*0.16;
+  ctx.fillStyle='rgb(127,127,127)'; ctx.fillRect(0,0,size,size);
+  const imgData=ctx.getImageData(0,0,size,size); const d=imgData.data;
+  const lv=_norm([-0.55,-0.55,0.7]); const amb=0.28,shin=50,specStr=0.6;
+  const hv=_norm([-0.55,-0.55,1.7]);
+  for(let y=0;y<size;y++){for(let x=0;x<size;x++){
+    const dx=(x-cx)/rw, dy=(y-cy)/rh, d2=dx*dx+dy*dy;
+    if(d2>1.0) continue;
+    const dz=Math.sqrt(1-d2);
+    const diff=Math.max(0,_dot([dx,dy,dz],lv));
+    const shade=diff*(1-amb)+amb;
+    const spec=Math.pow(Math.max(0,_dot([dx,dy,dz],hv)),shin)*specStr;
+    const i=(y*size+x)*4;
+    d[i  ]=Math.min(255,(shade*rc+spec)*255);
+    d[i+1]=Math.min(255,(shade*gc+spec)*255);
+    d[i+2]=Math.min(255,(shade*bc+spec)*255);
+    d[i+3]=255;
+  }}
+  _addNoise(d, size, 5);
+  ctx.putImageData(imgData,0,0);
+  ctx.save(); ctx.globalAlpha=0.16; ctx.filter='blur(8px)'; ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(cx+rw*0.1,cy+rh+rh*0.3,rw*0.9,rh*0.25,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  _applyWatermark(ctx, size);
+}
+
+function generateCanvasPlaceholder(prompt) {
+  const p = prompt.toLowerCase();
+
+  // ── Color detection ──
+  const colorMap = {
+    red:'#c83232',crimson:'#b22222',scarlet:'#c03030',
+    blue:'#2850c8',navy:'#1a2878',cyan:'#20a0c8',azure:'#2070d0',
+    green:'#28b450',lime:'#50c828',olive:'#7a8c28',teal:'#208080',
+    yellow:'#d4c428',gold:'#c8a028',amber:'#c87828',
+    orange:'#c87832',coral:'#c86050',
+    purple:'#8030c8',violet:'#6030b4',magenta:'#b028a0',
+    pink:'#c84882',rose:'#c03060',
+    brown:'#8c5a3c',tan:'#c89664',beige:'#c8b496',
+    black:'#282828',dark:'#383838',
+    white:'#d8d8d8',silver:'#a8a8b8',gray:'#787878',grey:'#787878',
+    bronze:'#a05828',copper:'#b46428',
+    wooden:'#9c6e3c',wood:'#9c6e3c',oak:'#a07040',
+    ceramic:'#c0a888',clay:'#b09070',terracotta:'#c06040',
+    glass:'#90b8d0',crystal:'#b0d4e0',
+    metal:'#909099',steel:'#808898',iron:'#606070',
+    golden:'#c8a028',chrome:'#a0a8b0',platinum:'#b0b0c0',
+  };
+  let fillColor='#907860';
+  for(const [name,hex] of Object.entries(colorMap)){
+    if(p.includes(name)){fillColor=hex;break;}
+  }
+  // Override for specific objects with natural colors
+  if(p.includes('apple')&&!Object.keys(colorMap).some(c=>p.includes(c))) fillColor='#c82828';
+  if(p.includes('orange')&&!Object.keys(colorMap).some(c=>p.includes(c)&&c!=='orange')) fillColor='#e07020';
+  if(p.includes('banana')) fillColor='#d4c428';
+  if(p.includes('grass')||p.includes('tree')||p.includes('plant')) fillColor='#28a040';
+
+  // ── Shape detection (order matters — most specific first) ──
+  const isSphere   = ['ball','sphere','orb','globe','bead','pearl',
+                       'apple','orange','tomato','lemon','peach','plum','grape',
+                       'melon','cherry','blueberry','avocado'].some(w=>p.includes(w));
+  const isCylinder = ['cup','mug','bottle','can','jar','vase','tube',
+                       'cylinder','pipe','barrel','glass','tumbler','bucket',
+                       'pot','flask','thermos'].some(w=>p.includes(w));
+  const isChair    = ['chair','seat','stool','throne','sofa','couch','bench'].some(w=>p.includes(w));
+  const isPhone    = ['phone','smartphone','tablet','iphone','android'].some(w=>p.includes(w));
+  const isShoe     = ['shoe','boot','sneaker','sandal','slipper','heel'].some(w=>p.includes(w));
+  const isTable    = ['table','desk','counter','shelf','board'].some(w=>p.includes(w));
+
+  const canvas=document.createElement('canvas');
+  canvas.width=512; canvas.height=512;
+  const ctx=canvas.getContext('2d');
+
+  if(isSphere)        _renderSphere(ctx,512,fillColor);
+  else if(isCylinder) _renderCylinder(ctx,512,fillColor);
+  else if(isChair)    _renderChair(ctx,512,fillColor);
+  else if(isPhone)    _renderElongated(ctx,512,fillColor,false);
+  else if(isShoe)     _renderElongated(ctx,512,fillColor,true);
+  else if(isTable){
+    // Table: wide flat top + 4 legs (use box with different proportions)
+    _renderBox(ctx,512,fillColor);
+  }
+  else                _renderBox(ctx,512,fillColor);
+
+  return new Promise(res=>canvas.toBlob(b=>res(b),'image/png'));
+}
+
+async function browserTextToImage(prompt) {
+  const enhanced = prompt +
+    ", isolated single object, plain white background, " +
+    "studio product photo, sharp focus, centered, high quality, no shadows";
+
+  // Method 1: Pollinations.ai — current API, no key needed for this volume of use.
+  log('  Trying Pollinations.ai…');
+  try {
+    const seed = Math.floor(Math.random()*99999);
+    const pUrl = `https://gen.pollinations.ai/image/${encodeURIComponent(enhanced)}` +
+                 `?width=512&height=512&model=flux&seed=${seed}`;
+    const resp = await fetch(pUrl, { signal: AbortSignal.timeout(45000) });
+    if(resp.ok) {
+      const b = await resp.blob();
+      if(b.size > 2000 && b.type.startsWith('image/')) { log(`  ✓ Pollinations.ai (${(b.size/1024).toFixed(0)} KB)`); return { blob:b, source:'api' }; }
+    }
+    log(`  Pollinations: HTTP ${resp.status}`);
+  } catch(e) { log(`  Pollinations: ${e.message}`); }
+
+  // Method 2: Pollinations.ai legacy endpoint — kept as a fallback in case the
+  // current one is unreachable from your network; same provider, older URL shape.
+  log('  Trying Pollinations.ai (legacy endpoint)…');
+  try {
+    const seed = Math.floor(Math.random()*99999);
+    const pUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhanced)}` +
+                 `?width=512&height=512&nologo=true&model=flux&seed=${seed}`;
+    const resp = await fetch(pUrl, { signal: AbortSignal.timeout(45000) });
+    if(resp.ok) {
+      const b = await resp.blob();
+      if(b.size > 2000 && b.type.startsWith('image/')) { log(`  ✓ Pollinations.ai legacy (${(b.size/1024).toFixed(0)} KB)`); return { blob:b, source:'api' }; }
+    }
+    log(`  Pollinations legacy: HTTP ${resp.status}`);
+  } catch(e) { log(`  Pollinations legacy: ${e.message}`); }
+
+  // Method 3: Canvas placeholder (always works — no network, no key, no quota).
+  // NOTE: a previous version of this file called the Hugging Face Inference API
+  // here, with an API token hardcoded directly in this shipped source file.
+  // That's a real security problem (anyone viewing source, or any fork of this
+  // repo, gets a live credential) independent of whether the token still works,
+  // and HF's free serverless endpoint for text-to-image models has also become
+  // unreliable since that code was written. Removed rather than patched — if
+  // you want an HF-backed tier back, wire in your OWN token via an environment
+  // variable on a server you control, never a string literal in a file users'
+  // browsers download.
+  log('  Both Pollinations endpoints unavailable — generating local shape placeholder…');
+  const cb = await generateCanvasPlaceholder(prompt);
+  log(`  ✓ Canvas placeholder (${(cb.size/1024).toFixed(0)} KB)`);
+  return { blob:cb, source:'canvas' };
+}
+$('gb').onclick=async function(){
+  if(!checkReady)return;
+  this.disabled=true; $('gl').textContent='Generating…'; $('gi').textContent='◌';
+  $('es').style.display='none'; $('db').disabled=true; $('gt2').style.display='none';
+  setBadge('work','Running…'); setProgress(5);
+  setHUD(true,'Preparing generation…','Running locally on your CPU',5);
+
+  if(fa){fa.destroy();fa=null;}
+  fa=new FormationAnim(scene);
+  $('sb2').classList.add('vis');
+  multiResults = [];
+  log('→ Starting generation…');
+
+  const fd=new FormData();
+  fd.append('remove_bg',$('rbg').checked?'true':'false');
+  fd.append('fg_ratio',$('fr').value);
+  fd.append('mc_resolution',$('mr').value);
+  fd.append('threshold',$('thr').value);
+  fd.append('polish',currentPolish);
+  fd.append('studio_texture',$('stex').checked?'true':'false');
+
+  // ── TEXT MODE: generate image IN BROWSER (avoids server firewall issues) ──
+  if(currentMode==='text'){
+    fd.append('mode','single'); // send as single image after browser generates it
+    const prompt=$('tp').value.trim();
+    if(!prompt){endGeneration('error');log('✕ No prompt entered');return;}
+    try{
+      const result = await browserTextToImage(prompt);
+      const { blob: imgBlob, source } = result;
+      const url = URL.createObjectURL(imgBlob);
+      $('gi2').src = url; $('gt2').style.display = 'flex';
+      if(source === 'canvas'){
+        log('  Canvas placeholder: Lambert+Phong shading, no orientation fix.');
+      }
+      // filename encodes source for reliable server-side detection
+      const fname = (source==='canvas') ? 'canvas_generated.png' : 'api_generated.png';
+      fd.append('image', imgBlob, fname);
+    }catch(e){
+      endGeneration('error');
+      setBadge('err','Failed');
+      log('✕ '+e.message);
+      toast('Generation failed','✕');
+      return;
+    }
+  } else if(currentMode==='single'){
+    fd.append('mode','single');
+    fd.append('image',imageFile);
+  } else {
+    fd.append('mode','multiple');
+    multiFiles.forEach(f=>fd.append('images',f));
+  }
+
+  // Use fetch ReadableStream to consume SSE from POST response
+  try{
+    const resp=await fetch('/generate',{method:'POST',body:fd});
+    if(!resp.ok){throw new Error('HTTP '+resp.status);}
+
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    let buf='';
+
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');
+      buf=lines.pop();
+      for(const line of lines){
+        if(!line.startsWith('data:'))continue;
+        try{
+          const msg=JSON.parse(line.slice(5).trim());
+          handleSSE(msg);
+          if(msg.type==='done'||msg.type==='error'||msg.type==='cancelled')return;
+        }catch(e){}
+      }
+    }
+  }catch(e){
+    endGeneration('error');
+    setBadge('err','Failed'); log('✕ '+e.message); toast('Failed','✕');
+  }
+};
+
+async function handleSSE(msg){
+  if(msg.type==='started'){
+    currentJobId=msg.job_id; log('Job: '+msg.job_id);
+  } else if(msg.type==='progress'){
+    const pct=msg.pct||0, phase=msg.phase||'particles';
+    setProgress(pct);
+    setHUD(true,msg.msg||'Working…','Running locally on your CPU',pct);
+    setBadge('work',msg.msg||'Running…');
+    if(fa) fa.setPhase(phase, pct);
+    log(msg.msg||'');
+  } else if(msg.type==='result_ready'){
+    // Multi-image: accumulate results as each finishes
+    multiResults.push({file_id:msg.file_id, name:msg.name});
+    log(`✓ Model ready: ${msg.name}`);
+  } else if(msg.type==='done'){
+    const results = msg.results || multiResults;
+    if(!results || results.length===0){
+      endGeneration('error');
+      setBadge('err','No results');log('✕ No models generated');return;
+    }
+    log('Loading model into viewer…');
+    setHUD(true,'Loading into viewer…','Almost there!',98);
+    if(fa) fa.setPhase('materialise',98);
+    buildGallery(results);
+    const first=results[0];
+    await loadModel(first.file_id, first.name||'model');
+    $('imod').textContent=currentMode; curFileId=first.file_id;
+    $('ifmt').textContent = first.textured ? 'GLB · Textured' : 'GLB · Vertex Color';
+    $('db').disabled=false;
+    endGeneration('ok');
+    $('es').style.display='none';
+    setProgress(null); setBadge('ok','Model ready');
+    toast('3D model ready!','🧊');
+  } else if(msg.type==='error'){
+    endGeneration('error');
+    setBadge('err','Failed'); log('✕ '+(msg.message||'Unknown error')); toast('Failed — see log','✕');
+  } else if(msg.type==='cancelled'){
+    endGeneration('cancelled');
+  }
+}
+
+/* Download */
+$('db').onclick=()=>{
+  if(!curFileId)return;
+  const a=document.createElement('a');a.href='/download/'+curFileId;
+  a.download='forge3d_'+curFileId+'.glb';a.click();
+  log('GLB saved.');toast('Downloaded!','⬇');};
+
+/* Boot */
+requestAnimationFrame(initThree);
+</script>
+</body>
+</html>

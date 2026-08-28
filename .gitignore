@@ -1,0 +1,34 @@
+# TripoSR is cloned locally by each user, not vendored into this repo
+TripoSR/
+
+# Generated models
+outputs/
+*.glb
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+ENV/
+
+# Model / cache downloads
+.rembg/
+*.onnx
+*.ckpt
+*.safetensors
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

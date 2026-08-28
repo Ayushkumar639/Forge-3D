@@ -1,0 +1,41 @@
+name: Lint
+
+# Deliberately does NOT install torch/TripoSR/etc — those are multi-GB and
+# need real model weights, which doesn't fit a free CI runner. This just
+# catches syntax errors and obvious issues fast, on every push/PR.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Byte-compile Python sources
+        run: python -m py_compile app.py bake_worker.py
+      - name: Install ruff
+        run: pip install ruff
+      - name: Ruff (errors only, non-blocking style)
+        run: ruff check --select=E9,F app.py bake_worker.py
+
+  js-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Extract and check inline <script> syntax
+        run: |
+          python3 -c "
+          import re
+          html = open('index.html').read()
+          m = re.search(r'<script>(.*?)</script>', html, re.DOTALL)
+          open('extracted.js', 'w').write(m.group(1))
+          "
+          node --check extracted.js

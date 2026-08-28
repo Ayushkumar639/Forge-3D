@@ -1,0 +1,38 @@
+# ── Flask web app ────────────────────────────────────────────────
+flask>=3.0
+flask-cors>=4.0
+python-dotenv>=1.0
+
+# ── Core TripoSR pipeline ───────────────────────────────────────
+# torch is deliberately unpinned here -- install the CPU build yourself
+# first with the command in README.md, THEN install this file, so pip
+# doesn't try to pull a multi-GB CUDA build you don't need.
+torch>=2.1
+omegaconf==2.3.0
+Pillow>=10.1
+einops==0.7.0
+git+https://github.com/tatsy/torchmcubes.git
+transformers==4.35.0
+trimesh==4.0.5
+rembg
+huggingface-hub
+
+# trimesh==4.0.5 calls an ndarray method NumPy 2.0 removed (mid-2024), in
+# 50+ places -- including mesh export. Without this pin, generation runs
+# all the way through TripoSR and then crashes on the FINAL save step.
+# See README.md "What was actually broken" for how this was found.
+numpy<2
+
+# scipy is REQUIRED for the "Polish" (Taubin smoothing) step.
+# trimesh imports it inside a bare try/except, so without this line
+# Polish silently does nothing instead of erroring -- see README.md
+# "What was actually broken" section.
+scipy
+
+# ── Optional: Studio Texture (baked UV texture instead of vertex colors) ──
+# The app runs fully without these two -- Studio Texture just stays
+# unavailable and every generation automatically uses the enhanced
+# vertex-color path instead. See README.md "Studio Texture" for what
+# this buys you and the extra setup it needs on a headless Linux box.
+xatlas==0.0.9
+moderngl==5.10.0
