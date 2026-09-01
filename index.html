@@ -321,11 +321,11 @@ input[type=range]{width:100%;accent-color:var(--ac);height:3px;cursor:pointer}
         <div class="slbl">Speed / Detail</div>
         <div class="pbs" id="spd">
           <button class="pb" data-mc="64" data-n="~1 min">⚡ Fast</button>
-          <button class="pb on" data-mc="128" data-n="~2-4 min">⚖ Balanced</button>
-          <button class="pb" data-mc="256" data-n="~8-15 min">🔬 Detailed</button>
+          <button class="pb" data-mc="128" data-n="~2-4 min">⚖ Balanced</button>
+          <button class="pb on" data-mc="256" data-n="~8-15 min">🔬 Detailed</button>
           <button class="pb" data-mc="320" data-n="~15-25 min">💎 Studio</button>
         </div>
-        <div style="font-size:9px;color:var(--t3);margin-top:4px;text-align:center" id="sn">Estimated ~2-4 min on CPU</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:4px;text-align:center" id="sn">Estimated ~8-15 min on CPU</div>
       </div>
 
       <!-- Polish -->
@@ -337,7 +337,7 @@ input[type=range]{width:100%;accent-color:var(--ac);height:3px;cursor:pointer}
           <button class="pb on" data-p="2">Medium</button>
           <button class="pb" data-p="3">Heavy</button>
         </div>
-        <div style="font-size:9px;color:var(--t3);margin-top:3px;line-height:1.5">Cleans up raw geometry, then Taubin-smooths — removes noise, preserves shape &amp; colors.</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:3px;line-height:1.5">Cleans up raw geometry, then Taubin-smooths — removes noise, preserves shape &amp; colors. Heavy can round off sharp edges on simple geometric shapes (a cube, say) — drop to Light/Medium if edges matter more than surface smoothness.</div>
       </div>
 
       <!-- Studio Texture -->
@@ -345,9 +345,9 @@ input[type=range]{width:100%;accent-color:var(--ac);height:3px;cursor:pointer}
         <div class="slbl">Output Quality</div>
         <div class="tr">
           <span class="tl">Studio Texture <span style="color:var(--t3)">(experimental)</span></span>
-          <label class="tog"><input type="checkbox" id="stex"><span class="sli"></span></label>
+          <label class="tog"><input type="checkbox" id="stex" checked><span class="sli"></span></label>
         </div>
-        <div style="font-size:9px;color:var(--t3);margin-top:4px;line-height:1.5">Bakes a real UV-mapped texture instead of per-vertex color — crisper detail, independent of mesh resolution. Needs optional packages (see README); automatically falls back to enhanced vertex colors if unavailable, so this never blocks a generation.</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:4px;line-height:1.5">Bakes a real UV-mapped texture instead of per-vertex color — crisper detail, independent of mesh resolution. On by default for best quality; automatically falls back to enhanced vertex colors if it can't run on your machine, so this never blocks a generation.</div>
       </div>
 
       <!-- Advanced -->
@@ -355,8 +355,8 @@ input[type=range]{width:100%;accent-color:var(--ac);height:3px;cursor:pointer}
         <div class="ah" id="ah">▶ Advanced Controls</div>
         <div class="ab" id="ab">
           <div class="rr" style="margin-top:4px">
-            <div class="rh"><span>MC Resolution</span><span class="v" id="mrv">128</span></div>
-            <input type="range" id="mr" min="32" max="320" step="32" value="128"
+            <div class="rh"><span>MC Resolution</span><span class="v" id="mrv">256</span></div>
+            <input type="range" id="mr" min="32" max="320" step="32" value="256"
               oninput="$('mrv').textContent=this.value">
           </div>
           <div class="rr">
@@ -1042,6 +1042,15 @@ async function browserTextToImage(prompt) {
   } catch(e) { log(`  Pollinations legacy: ${e.message}`); }
 
   // Method 4: Canvas placeholder (always works — no network, no key, no quota).
+  // NOTE: a previous version of this file called the Hugging Face Inference API
+  // here, with an API token hardcoded directly in this shipped source file.
+  // That's a real security problem (anyone viewing source, or any fork of this
+  // repo, gets a live credential) independent of whether the token still works,
+  // and HF's free serverless endpoint for text-to-image models has also become
+  // unreliable since that code was written. Removed rather than patched — if
+  // you want an HF-backed tier back, wire in your OWN token via an environment
+  // variable on a server you control, never a string literal in a file users'
+  // browsers download.
   log('  Both Pollinations endpoints unavailable — generating local shape placeholder…');
   const cb = await generateCanvasPlaceholder(prompt);
   log(`  ✓ Canvas placeholder (${(cb.size/1024).toFixed(0)} KB)`);

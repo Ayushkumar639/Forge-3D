@@ -1,5 +1,3 @@
-import sys
-sys.path.append("TripoSR")
 import io
 import json
 import os
@@ -21,11 +19,12 @@ from PIL import Image, ImageEnhance, ImageFilter
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv() 
 except ImportError:
     pass
 
 HERE = Path(__file__).resolve().parent
+
 TRIPOSR_DIR = Path(os.environ.get("TRIPOSR_DIR", HERE / "TripoSR")).resolve()
 sys.path.insert(0, str(TRIPOSR_DIR))
 
@@ -37,6 +36,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 model = None
 rembg_session = None
 active_jobs = {}
+
 
 def _check_environment():
     np_major = int(np.__version__.split(".")[0])
@@ -63,7 +63,7 @@ def _check_environment():
         print("=" * 70 + "\n")
 
     try:
-        import scipy
+        import scipy  
     except ImportError:
         print("\n" + "=" * 70)
         print("  Forge3D: scipy is not installed.")
@@ -72,7 +72,7 @@ def _check_environment():
         print("=" * 70 + "\n")
 
     try:
-        import xatlas, moderngl 
+        import xatlas, moderngl
         print("  Studio Texture: available (xatlas + moderngl found).")
     except ImportError:
         print("  Studio Texture: not available (optional -- pip install xatlas moderngl to enable).")
@@ -104,19 +104,25 @@ def load_model():
 
 
 def get_rembg_session():
+
     global rembg_session
     if rembg_session is not None:
         return rembg_session
     import rembg
 
-    model_name = os.environ.get("REMBG_MODEL", "isnet-general-use")
-    try:
-        rembg_session = rembg.new_session(model_name)
-        print(f"  rembg model: {model_name}")
-    except Exception as e:
-        print(f"  Could not load rembg model '{model_name}' ({e}); using rembg's default instead.")
-        rembg_session = rembg.new_session()
+    model_name = os.environ.get("REMBG_MODEL", "birefnet-general")
+    fallbacks = [model_name, "isnet-general-use"]
+    for name in fallbacks:
+        try:
+            rembg_session = rembg.new_session(name)
+            print(f"  rembg model: {name}")
+            return rembg_session
+        except Exception as e:
+            print(f"  Could not load rembg model '{name}' ({e}); trying next fallback…")
+    rembg_session = rembg.new_session()
+    print("  rembg model: default (all preferred models failed to load)")
     return rembg_session
+
 
 def _fill_bg_gray(image_rgba):
     a = np.array(image_rgba).astype(np.float32) / 255.0
@@ -126,6 +132,13 @@ def _fill_bg_gray(image_rgba):
 
 def _resize_foreground(img_rgba, ratio):
     a = np.array(img_rgba)
+    fg_area = int((a[..., 3] > 0).sum())
+    total_area = a.shape[0] * a.shape[1]
+    if fg_area / total_area < 0.02:
+
+        print(f"  Foreground mask covers only {fg_area/total_area:.1%} of the image — looks unreliable, ignoring it")
+        a = a.copy()
+        a[..., 3] = 255
     yw, xw = np.where(a[..., 3] > 0)
     if len(yw) == 0:
         return img_rgba
@@ -147,7 +160,7 @@ def sharpen_input(img_rgb):
 
 
 def preprocess(img_pil, remove_bg=True, fg_ratio=0.85):
-
+    
     rgb0 = np.array(img_pil.convert("RGB"))
     r0, g0, b0 = int(rgb0[0, 0, 0]), int(rgb0[0, 0, 1]), int(rgb0[0, 0, 2])
     is_canvas = r0 == 1 and g0 == 2 and b0 == 3
@@ -158,7 +171,7 @@ def preprocess(img_pil, remove_bg=True, fg_ratio=0.85):
     if is_canvas:
         img = img.resize((512, 512), Image.LANCZOS).convert("RGB")
         arr = np.array(img)
-        arr[0, 0] = [127, 127, 127]
+        arr[0, 0] = [127, 127, 127] 
         img = Image.fromarray(arr)
         img = sharpen_input(img)
         return img, True
@@ -180,7 +193,7 @@ def preprocess(img_pil, remove_bg=True, fg_ratio=0.85):
     return img, False
 
 def run_triposr(img_rgb, mc_resolution=192, threshold=25.0, is_canvas=False):
-
+    
     import torch
     import trimesh as tm
 
@@ -196,6 +209,7 @@ def run_triposr(img_rgb, mc_resolution=192, threshold=25.0, is_canvas=False):
         mesh.apply_transform(tm.transformations.rotation_matrix(np.pi / 2, [0, 1, 0]))
     return mesh, scene_code
 
+
 def cleanup_mesh(mesh):
     import trimesh as tm
 
@@ -205,6 +219,19 @@ def cleanup_mesh(mesh):
         mesh.update_faces(mesh.nondegenerate_faces())
         mesh.update_faces(mesh.unique_faces())
         mesh.remove_unreferenced_vertices()
+
+
+        components = mesh.split(only_watertight=False)
+        if len(components) > 1:
+            components = sorted(components, key=lambda c: len(c.faces), reverse=True)
+            largest = len(components[0].faces)
+            keep = [c for c in components if len(c.faces) >= max(12, largest * 0.02)]
+            dropped = len(components) - len(keep)
+            if dropped > 0:
+                mesh = tm.util.concatenate(keep) if len(keep) > 1 else keep[0]
+                print(f"  Cleanup: dropped {dropped} disconnected noise fragment(s)")
+
+        mesh.fill_holes()
         tm.repair.fix_normals(mesh)
         print(f"  Cleanup: {before} → {len(mesh.faces)} faces")
     except Exception as e:
@@ -221,6 +248,7 @@ def polish_mesh(mesh, level=2):
         print(f"  Taubin ×{iters}…")
         tm.smoothing.filter_taubin(mesh, lamb=0.5, nu=0.53, iterations=iters)
     except Exception as e:
+
         print(f"  ! Smoothing skipped due to: {e}")
         print("    (if this says 'coo_matrix' or similar: pip install scipy)")
     return mesh
@@ -271,7 +299,7 @@ def positions_to_colors(model, scene_code, positions_texture, texture_resolution
     return rgba_f.reshape(texture_resolution, texture_resolution, 4)
 
 
-def bake_texture_isolated(mesh, model, scene_code, resolution=1024, timeout=90):
+def bake_texture_isolated(mesh, model, scene_code, resolution=1024, timeout=150):
 
     worker = HERE / "bake_worker.py"
     if not worker.exists():
@@ -283,7 +311,7 @@ def bake_texture_isolated(mesh, model, scene_code, resolution=1024, timeout=90):
             np.savez(in_path, vertices=mesh.vertices.astype(np.float32), faces=mesh.faces.astype(np.int32))
 
             env = dict(os.environ)
-            env.setdefault("OMP_NUM_THREADS", "1")
+            env.setdefault("OMP_NUM_THREADS", "1") 
 
             proc = subprocess.run(
                 [sys.executable, str(worker), str(in_path), str(out_path), str(resolution)],
@@ -330,7 +358,9 @@ def build_textured_mesh(mesh, bake_result):
     new_mesh.visual = tm.visual.TextureVisuals(uv=bake_result["uvs"], material=material)
     return new_mesh
 
+
 def sanitize_mesh(mesh):
+   
     verts = mesh.vertices
     bad = ~np.isfinite(verts).all(axis=1)
     if bad.any():
@@ -341,6 +371,7 @@ def sanitize_mesh(mesh):
         print(f"  Sanitize: patching {bad_n.sum()} non-finite normals")
         mesh.vertex_normals[bad_n] = [0.0, 0.0, 1.0]
     return mesh
+
 
 def save_mesh(mesh, job_id):
     import trimesh as tm
@@ -361,6 +392,7 @@ def full_pipeline(img_bytes, fname, remove_bg, fg_ratio, mc_res, threshold, poli
 
     q_emit({"type": "progress", "pct": 10, "msg": "Preprocessing…", "phase": "particles"})
     processed, is_canvas = preprocess(img, remove_bg, fg_ratio)
+  
     processed.save(OUTPUT_DIR / f"{job_id}_input.png")
 
     if is_canvas:
@@ -383,7 +415,7 @@ def full_pipeline(img_bytes, fname, remove_bg, fg_ratio, mc_res, threshold, poli
     textured = False
     if studio_texture:
         q_emit({"type": "progress", "pct": 88, "msg": "Baking studio texture…", "phase": "fill"})
-        bake_result = bake_texture_isolated(mesh, model, scene_code, resolution=1024)
+        bake_result = bake_texture_isolated(mesh, model, scene_code, resolution=2048)
         if bake_result is not None:
             mesh = build_textured_mesh(mesh, bake_result)
             textured = True
@@ -412,7 +444,7 @@ def _worker(form_data, files_data, job_id, q, stop):
     try:
         remove_bg = form_data.get("remove_bg", "true") == "true"
         fg_ratio = float(form_data.get("fg_ratio", 0.85))
-        mc_res = int(form_data.get("mc_resolution", 128))
+        mc_res = int(form_data.get("mc_resolution", 256))
         threshold = float(form_data.get("threshold", 25.0))
         polish = int(form_data.get("polish", 2))
         studio_texture = form_data.get("studio_texture", "false") == "true"
@@ -452,10 +484,13 @@ def _worker(form_data, files_data, job_id, q, stop):
 
 @app.route("/")
 def index():
+    
     return send_from_directory(str(HERE), "index.html")
+
 
 @app.route("/text2img")
 def text2img():
+
     prompt = request.args.get("prompt", "").strip()
     if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
@@ -476,6 +511,7 @@ def text2img():
         return jsonify({"error": f"Pollinations returned HTTP {r.status_code}"}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 502
+
 
 @app.route("/generate", methods=["POST"])
 def generate():
