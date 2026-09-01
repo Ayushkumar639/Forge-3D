@@ -998,7 +998,21 @@ async function browserTextToImage(prompt) {
     ", isolated single object, plain white background, " +
     "studio product photo, sharp focus, centered, high quality, no shadows";
 
-  // Method 1: Pollinations.ai — current API, no key needed for this volume of use.
+  // Method 1: your own Forge3D server, using a Pollinations key kept in .env
+  // (server-side only — never shipped to the browser). Silently skipped if
+  // you haven't set POLLINATIONS_API_KEY; falls through to Method 2 either way.
+  log('  Trying your server-side Pollinations key…');
+  try {
+    const resp = await fetch(`/text2img?prompt=${encodeURIComponent(enhanced)}`, { signal: AbortSignal.timeout(50000) });
+    if(resp.ok) {
+      const b = await resp.blob();
+      if(b.size > 2000 && b.type.startsWith('image/')) { log(`  ✓ Server-side Pollinations key (${(b.size/1024).toFixed(0)} KB)`); return { blob:b, source:'api' }; }
+    } else {
+      log(`  No server-side key configured (HTTP ${resp.status}) — trying anonymous access…`);
+    }
+  } catch(e) { log(`  Local proxy: ${e.message}`); }
+
+  // Method 2: Pollinations.ai — current API, anonymous access (rate-limited).
   log('  Trying Pollinations.ai…');
   try {
     const seed = Math.floor(Math.random()*99999);
@@ -1012,7 +1026,7 @@ async function browserTextToImage(prompt) {
     log(`  Pollinations: HTTP ${resp.status}`);
   } catch(e) { log(`  Pollinations: ${e.message}`); }
 
-  // Method 2: Pollinations.ai legacy endpoint — kept as a fallback in case the
+  // Method 3: Pollinations.ai legacy endpoint — kept as a fallback in case the
   // current one is unreachable from your network; same provider, older URL shape.
   log('  Trying Pollinations.ai (legacy endpoint)…');
   try {
@@ -1027,16 +1041,7 @@ async function browserTextToImage(prompt) {
     log(`  Pollinations legacy: HTTP ${resp.status}`);
   } catch(e) { log(`  Pollinations legacy: ${e.message}`); }
 
-  // Method 3: Canvas placeholder (always works — no network, no key, no quota).
-  // NOTE: a previous version of this file called the Hugging Face Inference API
-  // here, with an API token hardcoded directly in this shipped source file.
-  // That's a real security problem (anyone viewing source, or any fork of this
-  // repo, gets a live credential) independent of whether the token still works,
-  // and HF's free serverless endpoint for text-to-image models has also become
-  // unreliable since that code was written. Removed rather than patched — if
-  // you want an HF-backed tier back, wire in your OWN token via an environment
-  // variable on a server you control, never a string literal in a file users'
-  // browsers download.
+  // Method 4: Canvas placeholder (always works — no network, no key, no quota).
   log('  Both Pollinations endpoints unavailable — generating local shape placeholder…');
   const cb = await generateCanvasPlaceholder(prompt);
   log(`  ✓ Canvas placeholder (${(cb.size/1024).toFixed(0)} KB)`);

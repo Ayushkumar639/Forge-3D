@@ -1,17 +1,10 @@
-"""
-Forge3D — local, CPU-friendly single-image / multi-image / text-to-3D generator
-built on Stability AI + Tripo AI's TripoSR (https://github.com/VAST-AI-Research/TripoSR).
-
-Run:      python app.py
-Then:     open http://localhost:5000
-
-See README.md for setup, what every setting does, and the tuning /
-"further improvement" path once you've exhausted the settings here.
-"""
+import sys
+sys.path.append("TripoSR")
 import io
 import json
 import os
 import queue
+import random
 import subprocess
 import sys
 import tempfile
@@ -28,16 +21,11 @@ from PIL import Image, ImageEnhance, ImageFilter
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()  # picks up a local .env file if present; harmless no-op otherwise
+    load_dotenv()
 except ImportError:
     pass
 
-# ─────────────────────────────────────────────────────────────
-#  PATHS & APP SETUP
-# ─────────────────────────────────────────────────────────────
 HERE = Path(__file__).resolve().parent
-# Override with an env var if you keep the TripoSR checkout somewhere else,
-# e.g. TRIPOSR_DIR=/opt/TripoSR python app.py
 TRIPOSR_DIR = Path(os.environ.get("TRIPOSR_DIR", HERE / "TripoSR")).resolve()
 sys.path.insert(0, str(TRIPOSR_DIR))
 
@@ -50,17 +38,6 @@ model = None
 rembg_session = None
 active_jobs = {}
 
-
-# ─────────────────────────────────────────────────────────────
-#  STARTUP DIAGNOSTICS
-#  Surfaces the two failure modes that otherwise fail silently or with
-#  a cryptic traceback deep in a background thread:
-#   1) TripoSR not cloned into TRIPOSR_DIR (the historical blocker here)
-#   2) scipy missing -- trimesh imports it inside a bare try/except, so
-#      Taubin smoothing ("Polish", on by default) silently no-ops instead
-#      of erroring when scipy isn't there. TripoSR's own requirements.txt
-#      never lists it because vanilla TripoSR doesn't smooth at all.
-# ─────────────────────────────────────────────────────────────
 def _check_environment():
     np_major = int(np.__version__.split(".")[0])
     if np_major >= 2:
@@ -86,7 +63,7 @@ def _check_environment():
         print("=" * 70 + "\n")
 
     try:
-        import scipy  # noqa: F401
+        import scipy
     except ImportError:
         print("\n" + "=" * 70)
         print("  Forge3D: scipy is not installed.")
@@ -95,7 +72,7 @@ def _check_environment():
         print("=" * 70 + "\n")
 
     try:
-        import xatlas, moderngl  # noqa: F401
+        import xatlas, moderngl 
         print("  Studio Texture: available (xatlas + moderngl found).")
     except ImportError:
         print("  Studio Texture: not available (optional -- pip install xatlas moderngl to enable).")
@@ -105,10 +82,6 @@ def _check_environment():
 
 TRIPOSR_READY = _check_environment()
 
-
-# ─────────────────────────────────────────────────────────────
-#  MODEL LOADING
-# ─────────────────────────────────────────────────────────────
 def load_model():
     global model
     if model is not None:
@@ -131,12 +104,6 @@ def load_model():
 
 
 def get_rembg_session():
-    """isnet-general-use gives noticeably cleaner object silhouettes than the
-    u2net default (fewer stray holes / fuzzy edges on hair, glass, thin
-    parts), which matters a lot here since every downstream step -- crop,
-    resize, orientation, the mesh itself -- inherits whatever the mask gets
-    wrong. Falls back to rembg's own default if that model can't be fetched
-    (e.g. first run with no network)."""
     global rembg_session
     if rembg_session is not None:
         return rembg_session
@@ -151,10 +118,6 @@ def get_rembg_session():
         rembg_session = rembg.new_session()
     return rembg_session
 
-
-# ─────────────────────────────────────────────────────────────
-#  PREPROCESSING
-# ─────────────────────────────────────────────────────────────
 def _fill_bg_gray(image_rgba):
     a = np.array(image_rgba).astype(np.float32) / 255.0
     rgb = a[:, :, :3] * a[:, :, 3:4] + (1 - a[:, :, 3:4]) * 0.5
@@ -184,14 +147,7 @@ def sharpen_input(img_rgb):
 
 
 def preprocess(img_pil, remove_bg=True, fg_ratio=0.85):
-    """
-    Canvas images (the client-side procedural placeholder used when text-to-
-    image APIs are unavailable) carry a pixel watermark: pixel(0,0) =
-    RGB(1,2,3). Detection is done by reading that pixel -- no form fields
-    needed, so this works no matter which input mode produced the image.
-    Returns (processed_img, is_canvas) so run_triposr can skip the
-    orientation fix that a real photo needs but a flat canvas render doesn't.
-    """
+
     rgb0 = np.array(img_pil.convert("RGB"))
     r0, g0, b0 = int(rgb0[0, 0, 0]), int(rgb0[0, 0, 1]), int(rgb0[0, 0, 2])
     is_canvas = r0 == 1 and g0 == 2 and b0 == 3
@@ -202,7 +158,7 @@ def preprocess(img_pil, remove_bg=True, fg_ratio=0.85):
     if is_canvas:
         img = img.resize((512, 512), Image.LANCZOS).convert("RGB")
         arr = np.array(img)
-        arr[0, 0] = [127, 127, 127]  # clear the marker so it doesn't end up in the mesh
+        arr[0, 0] = [127, 127, 127]
         img = Image.fromarray(arr)
         img = sharpen_input(img)
         return img, True
@@ -223,20 +179,8 @@ def preprocess(img_pil, remove_bg=True, fg_ratio=0.85):
     img = sharpen_input(img)
     return img, False
 
-
-# ─────────────────────────────────────────────────────────────
-#  TRIPOSR INFERENCE
-# ─────────────────────────────────────────────────────────────
 def run_triposr(img_rgb, mc_resolution=192, threshold=25.0, is_canvas=False):
-    """
-    is_canvas=True  → skip the two orientation rotations that turn a
-                       face-on disc into a thin vertical blade.
-    is_canvas=False → apply the official TripoSR Gradio Space orientation fix.
 
-    Returns (mesh, scene_code). scene_code is only needed if Studio Texture
-    baking is requested afterwards -- it's the neural triplane representation
-    that gets queried for a color at each point on the UV atlas.
-    """
     import torch
     import trimesh as tm
 
@@ -252,14 +196,6 @@ def run_triposr(img_rgb, mc_resolution=192, threshold=25.0, is_canvas=False):
         mesh.apply_transform(tm.transformations.rotation_matrix(np.pi / 2, [0, 1, 0]))
     return mesh, scene_code
 
-
-# ─────────────────────────────────────────────────────────────
-#  MESH CLEANUP  (new)
-#  Raw marching-cubes output can carry duplicate/degenerate faces and
-#  inconsistent winding. None of this was being cleaned up before, so any
-#  of it could ride straight through into the delivered GLB. Runs before
-#  smoothing so Polish is smoothing real geometry, not noise.
-# ─────────────────────────────────────────────────────────────
 def cleanup_mesh(mesh):
     import trimesh as tm
 
@@ -275,10 +211,6 @@ def cleanup_mesh(mesh):
         print(f"  Cleanup warning (continuing with uncleaned mesh): {e}")
     return mesh
 
-
-# ─────────────────────────────────────────────────────────────
-#  POST-PROCESSING
-# ─────────────────────────────────────────────────────────────
 def polish_mesh(mesh, level=2):
     import trimesh as tm
 
@@ -289,10 +221,6 @@ def polish_mesh(mesh, level=2):
         print(f"  Taubin ×{iters}…")
         tm.smoothing.filter_taubin(mesh, lamb=0.5, nu=0.53, iterations=iters)
     except Exception as e:
-        # Most likely cause: scipy isn't installed (see _check_environment).
-        # trimesh swallows that ImportError internally and only surfaces it
-        # here, as a NameError, the first time this is actually called --
-        # so this used to take the whole generation down with it.
         print(f"  ! Smoothing skipped due to: {e}")
         print("    (if this says 'coo_matrix' or similar: pip install scipy)")
     return mesh
@@ -331,23 +259,6 @@ def enhance_colors(mesh, is_canvas=False):
     print("  Colors enhanced")
     return mesh
 
-
-# ─────────────────────────────────────────────────────────────
-#  STUDIO TEXTURE  (new, optional)
-#  UV-unwraps the mesh and bakes a real texture image instead of relying on
-#  per-vertex color -- the same technique TripoSR's own `run.py --bake-texture`
-#  uses. Vertex color quality is capped by mesh resolution (colors blur across
-#  big triangles); a baked texture doesn't have that ceiling.
-#
-#  The atlas/rasterize step runs in bake_worker.py, in its OWN process --
-#  xatlas's atlas packer segfaulted outright in testing on a constrained
-#  (single-core) machine, a native crash no Python try/except can catch.
-#  Isolating it means a crash there can only fail that subprocess; this
-#  function detects that and falls back to enhanced vertex colors instead
-#  of losing the whole server. Only the final step (querying the model for
-#  a color at each position) happens here, since it needs the model that's
-#  already loaded in memory and is safe, ordinary PyTorch inference.
-# ─────────────────────────────────────────────────────────────
 def positions_to_colors(model, scene_code, positions_texture, texture_resolution):
     import torch
 
@@ -361,9 +272,7 @@ def positions_to_colors(model, scene_code, positions_texture, texture_resolution
 
 
 def bake_texture_isolated(mesh, model, scene_code, resolution=1024, timeout=90):
-    """Returns a dict like {'vmapping','indices','uvs','colors'}, or None if
-    baking isn't available / failed / timed out for any reason -- callers
-    always have a working vertex-color mesh to fall back to."""
+
     worker = HERE / "bake_worker.py"
     if not worker.exists():
         return None
@@ -374,7 +283,7 @@ def bake_texture_isolated(mesh, model, scene_code, resolution=1024, timeout=90):
             np.savez(in_path, vertices=mesh.vertices.astype(np.float32), faces=mesh.faces.astype(np.int32))
 
             env = dict(os.environ)
-            env.setdefault("OMP_NUM_THREADS", "1")  # mitigates a native thread-pool crash seen on low-core hosts
+            env.setdefault("OMP_NUM_THREADS", "1")
 
             proc = subprocess.run(
                 [sys.executable, str(worker), str(in_path), str(out_path), str(resolution)],
@@ -421,11 +330,22 @@ def build_textured_mesh(mesh, bake_result):
     new_mesh.visual = tm.visual.TextureVisuals(uv=bake_result["uvs"], material=material)
     return new_mesh
 
+def sanitize_mesh(mesh):
+    verts = mesh.vertices
+    bad = ~np.isfinite(verts).all(axis=1)
+    if bad.any():
+        print(f"  Sanitize: removing {bad.sum()} non-finite vertices before export")
+        mesh.update_vertices(~bad)
+    if len(mesh.vertices) and not np.isfinite(mesh.vertex_normals).all():
+        bad_n = ~np.isfinite(mesh.vertex_normals).all(axis=1)
+        print(f"  Sanitize: patching {bad_n.sum()} non-finite normals")
+        mesh.vertex_normals[bad_n] = [0.0, 0.0, 1.0]
+    return mesh
 
 def save_mesh(mesh, job_id):
     import trimesh as tm
 
-    _ = mesh.vertex_normals
+    mesh = sanitize_mesh(mesh)
     scene = tm.scene.Scene(geometry={"mesh": mesh})
     glb = scene.export(file_type="glb")
     p = OUTPUT_DIR / f"{job_id}.glb"
@@ -435,12 +355,13 @@ def save_mesh(mesh, job_id):
 
 
 def full_pipeline(img_bytes, fname, remove_bg, fg_ratio, mc_res, threshold, polish, studio_texture, q_emit):
-    """Complete pipeline for one image. Returns (job_id, textured: bool)."""
+
     job_id = str(uuid.uuid4())[:8]
     img = Image.open(io.BytesIO(img_bytes))
 
     q_emit({"type": "progress", "pct": 10, "msg": "Preprocessing…", "phase": "particles"})
     processed, is_canvas = preprocess(img, remove_bg, fg_ratio)
+    processed.save(OUTPUT_DIR / f"{job_id}_input.png")
 
     if is_canvas:
         q_emit({"type": "progress", "pct": 18, "msg": "Canvas input — skipping rembg & orient fix…", "phase": "converge"})
@@ -478,10 +399,6 @@ def full_pipeline(img_bytes, fname, remove_bg, fg_ratio, mc_res, threshold, poli
     save_mesh(mesh, job_id)
     return job_id, textured
 
-
-# ─────────────────────────────────────────────────────────────
-#  GENERATION WORKER
-# ─────────────────────────────────────────────────────────────
 def _worker(form_data, files_data, job_id, q, stop):
     def emit(msg):
         q.put(msg)
@@ -533,16 +450,32 @@ def _worker(form_data, files_data, job_id, q, stop):
         active_jobs.pop(job_id, None)
 
 
-# ─────────────────────────────────────────────────────────────
-#  ROUTES
-# ─────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
-    # Serves index.html straight from the project folder. The previous
-    # version pointed at a "static/" subfolder that was never created, so
-    # this 404'd on a fresh checkout every time.
     return send_from_directory(str(HERE), "index.html")
 
+@app.route("/text2img")
+def text2img():
+    prompt = request.args.get("prompt", "").strip()
+    if not prompt:
+        return jsonify({"error": "No prompt provided"}), 400
+    key = os.environ.get("POLLINATIONS_API_KEY", "")
+    if not key:
+        return jsonify({"error": "POLLINATIONS_API_KEY not set in .env"}), 501
+
+    import requests
+    from urllib.parse import quote
+
+    seed = random.randint(0, 99999)
+    url = f"https://gen.pollinations.ai/image/{quote(prompt)}?width=512&height=512&model=flux&seed={seed}"
+    try:
+        r = requests.get(url, headers={"Authorization": f"Bearer {key}"}, timeout=45)
+        content_type = r.headers.get("content-type", "")
+        if r.ok and content_type.startswith("image/"):
+            return Response(r.content, mimetype=content_type)
+        return jsonify({"error": f"Pollinations returned HTTP {r.status_code}"}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 @app.route("/generate", methods=["POST"])
 def generate():
